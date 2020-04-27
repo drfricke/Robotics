@@ -7,11 +7,10 @@ from pybricks.tools import wait, StopWatch
 from pybricks.robotics import DriveBase
 from pybricks.media.ev3dev import SoundFile, ImageFile
 
-# Write your program here
 #Additional imports&
 import ubinascii, ujson, urequests, utime
 import math
-#EV3Brick().speaker.beep()
+#EV3Brick().speaker.beep() 
 
 # Initializing section
 disSen = UltrasonicSensor(Port.S3)
@@ -24,6 +23,8 @@ motor2 = Motor(Port.C)
 theta, height, armLength = math.pi/10, 0.150, 0.09 
 
 #Pre-Function, Function :)
+
+#for making empty list - no appending here!
 def zeroListMaker(n):
      zeroList = [0]*n
      return zeroList
@@ -36,14 +37,17 @@ buttonFoul = TouchSensor(Port.S1)
 index, record, throw = 0, [0,0], ''
 
 #API!
-key = 'q2-v7Aq2fJ00VfOSN0lD1zjmvv9NEOTTAgHPrEqxWE'
+key = ####
 
 # Functions
+
+#Setups API address
 def SL_setup():
      urlBase = "https://api.systemlinkcloud.com/nitag/v2/tags/"
      headers = {"Accept":"application/json","x-ni-api-key":key}
      return urlBase, headers
 
+#Function to check cloud for input
 def Get_SL(Tag):
      urlBase, headers = SL_setup()
      urlValue = urlBase + Tag + "/values/current"
@@ -56,6 +60,7 @@ def Get_SL(Tag):
           result = 'failed'
      return result
 
+#Function to upload info to system link
 def Put_SL(Tag, Type, Value):
      urlBase, headers = SL_setup()
      urlValue = urlBase + Tag + "/values/current"
@@ -67,7 +72,7 @@ def Put_SL(Tag, Type, Value):
           reply = 'failed'
      return reply
 
-
+#Uses the Ultrasonic sensor to reset arm
 def resetArm():
      if resetSen.distance()/10 > 30:
           while (resetSen.distance()/10) > 30:
@@ -77,6 +82,7 @@ def resetArm():
                motor2.reset_angle(0)
           print('reset')
 
+#Checks user input for success/fail - Saves results if Successful
 def checkShot(index, omega, distance, throw):
      throw = 'Ref!'
      while throw == 'Ref!':
@@ -91,12 +97,15 @@ def checkShot(index, omega, distance, throw):
      return index, record, throw
 
 
+#Newton Model Code - solves for angular velocity given distance (taken in function)
 def Newton_Model(theta, height, armLength):
     velocity = (((math.sqrt(2))*((disSen.distance()+40)/1000)*math.sqrt(9.8)*math.sqrt(1/math.sin(2*theta)))
     /math.sqrt(2*(disSen.distance()+40)/1000+height*math.sin(2*theta)*(1/math.sin(2*theta)**2)))
     omega = ((velocity/armLength)*180/math.pi)/2.5
     return omega
 
+
+#Logs data to training data record
 def saving(trainingData):
      with open("trainingData.txt",'a+') as outFile:
                   for line in trainingData:
@@ -104,6 +113,7 @@ def saving(trainingData):
                   outFile.close
                   EV3Brick().speaker.say("I am ready for the majors")
 
+#This function determines the linear regression model from the stored training data
 def linerRegressionOfTrainingData():
      SumX, SumY, rawData, indexer = 0, 0, zeroListMaker(1000), 0
      fin = open('trainingData.txt')
@@ -142,24 +152,31 @@ def linerRegressionOfTrainingData():
 # Main Code
 # Get Training Data
 slope, intercept = linerRegressionOfTrainingData()
+
+#main loop
 while True:
      #print('Suggested Omega:', str(Newton_Model(theta, height, armLength))) #Newton's Suggestion
      last_distance = disSen.distance()
-     if Get_SL('trigger') == 'false': #Hold, Hold, Hold....
+      
+     #Waiting for command from system link
+     if Get_SL('trigger') == 'false':
           Put_SL('aim', 'STRING', str(disSen.distance()/10)+' cm')
      if Get_SL('trigger') == 'true': #Fire!
           Put_SL('aim', 'STRING', str(disSen.distance()/10)+' cm')
+          #Trigger is recieved determines user specified model
           if Get_SL('model') == '0':
                omega = Newton_Model(theta, height, armLength)
                print('Newton at Bat!')
           if Get_SL('model') == '1':
                omega = slope*disSen.distance()+intercept
                print('Glass Cannon at Bat!')
-          #wind up if far!
+          
+          # if the target exceeds 0.6 ms the system winds the arm up for increased momentum transfer
           if omega > 600:
                motor1.run_target(-80, -70,wait=False)
                motor2.run_target(-80, -70)
-          #This is for training purposes
+          
+          #This is for training purposes - user can correct omega on the fly!
           correction = int(Get_SL('speed'))
           omega = omega + correction
           print('omega:', omega, 'correction:', correction)
@@ -169,7 +186,9 @@ while True:
           motor2.reset_angle(0)
           last_distance = disSen.distance()
           index, record, throw = checkShot(index, omega, disSen.distance(), throw)
-     #Playing Catch with a Robot! It's for learning & science!   
+          
+     #Playing Catch with a Robot! It's for learning & science!
+     #This section records success and prints on screen the results
      if throw == 'Nice Shot Glass Cannon!':
           trainingData[index-1] = record
           print(trainingData[index-1])
@@ -178,11 +197,3 @@ while True:
           print('Good Game!')
           break
      resetArm()
-
-#Make LR function better- or use it once and return slopes and intercepts: check
-#Get rid of strike stuff: check
-#Find out how to delete bad data!!: right click Device Name, SSH into, ls, cd the file, ls, nano the file
-#Do Successes trialing with Newton and LR
-#High light interaction!
-#Videos and pictures of various stuff/phone
-#Make portfolio
